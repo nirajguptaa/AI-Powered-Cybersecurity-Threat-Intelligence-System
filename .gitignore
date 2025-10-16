@@ -3,4 +3,9 @@ venv/
 *.pt
 *.h5
 *.pkl
+*.ckptvenv/
+.env
+*.pt
+*.h5
+*.pkl
 *.ckpt

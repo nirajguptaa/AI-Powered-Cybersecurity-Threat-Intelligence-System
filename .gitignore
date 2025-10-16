@@ -1,2 +1,26 @@
-.env
+# Virtual environment
 venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+
+# Logs
+*.log
+
+# Large data / models (if not using Git LFS)
+*.pt
+*.h5
+*.pkl
+*.ckpt

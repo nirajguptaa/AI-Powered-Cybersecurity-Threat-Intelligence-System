@@ -1,0 +1,7 @@
+#!/Users/nirajgupta/multi_agent_cybersecurity/venv/bin/python
+import sys
+from embedchain.cli import cli
+if __name__ == '__main__':
+    if sys.argv[0].endswith('.exe'):
+        sys.argv[0] = sys.argv[0][:-4]
+    sys.exit(cli())

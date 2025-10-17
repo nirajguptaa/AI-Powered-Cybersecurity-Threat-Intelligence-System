@@ -121,5 +121,5 @@ Mitigation: Apply vendor security patches immediately
 - Advanced threat prediction using LLM fine-tuning.
 - Deployment as a web service or Slack bot for enterprise use.
 
-## 📄 License
-This project is licensed under the MIT License – see the LICENSE file for details.
+
+

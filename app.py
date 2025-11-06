@@ -19,7 +19,7 @@ st.set_page_config(
     page_icon="🛡️"
 )
 
-st.title("🛡️ AI-Powered Cybersecurity Threat Intelligence System")
+st.title(" AI-Powered Cybersecurity Threat Intelligence System")
 st.markdown("""
 This AI system analyzes cybersecurity threats from multiple sources and provides actionable intelligence.
 """)
@@ -301,7 +301,7 @@ def create_threat_type_chart(threats_data):
 # -----------------------------
 # Sidebar: Summary Metrics
 # -----------------------------
-st.sidebar.header("📊 Summary Stats")
+st.sidebar.header("Summary Stats")
 st.sidebar.metric("Total Queries Analyzed", len(st.session_state.history))
 if st.session_state.live_threats:
     critical = sum(1 for t in st.session_state.live_threats if t['severity'].lower() == "critical")
@@ -313,13 +313,16 @@ if st.session_state.live_threats:
     sources = set(t['source'] for t in st.session_state.live_threats)
     st.sidebar.metric("Threat Sources", len(sources))
 
-st.sidebar.markdown("🧠 Powered by CrewAI + LangChain + Groq")
+st.sidebar.markdown(" Powered by CrewAI + LangChain + Groq")
 
 # -----------------------------
 # Tabs
 # -----------------------------
-tabs = st.tabs(["🔍 Search & Analyze", "🌐 Multi-Source Threats", "📊 Threat Dashboard"])
+tabs = st.tabs(["🔍 Search & Analyze", " Multi-Source Threats", " Threat Dashboard"])
 
+# -----------------------------
+# Tab 1: Search & Analyze
+# -----------------------------
 # -----------------------------
 # Tab 1: Search & Analyze
 # -----------------------------
@@ -330,15 +333,27 @@ with tabs[0]:
 
     if st.button("Analyze with AI", key="analyze", use_container_width=True):
         if not user_query.strip():
-            st.warning("⚠️ Please enter a query to analyze.")
+            st.warning(" Please enter a query to analyze.")
         else:
+            # Add the query to history immediately
             st.session_state.history.append({"query": user_query, "response": None, "timestamp": datetime.now()})
-            with st.spinner("🚀 Analyzing your query using AI agents..."):
+            
+            # Create a placeholder for the result
+            result_placeholder = st.empty()
+            
+            with st.spinner(" Analyzing your query using AI agents..."):
                 try:
+                    # Show loading message
+                    with result_placeholder.container():
+                        st.info(" AI analysis in progress... This may take 10-30 seconds.")
+                    
                     result_text = analyze_user_query(user_query)
                     st.session_state.history[-1]["response"] = result_text
 
-                    with st.expander("📊 AI Cybersecurity Report", expanded=True):
+                    # Clear the loading message and show results
+                    result_placeholder.empty()
+                    
+                    with st.expander(" AI Cybersecurity Report", expanded=True):
                         st.markdown(result_text)
 
                     # Save report
@@ -346,7 +361,7 @@ with tabs[0]:
                     with open(filename, "w") as f:
                         f.write(result_text)
                     
-                    st.success(f"✅ Report saved as `{filename}`")
+                    st.success(f" Report saved as `{filename}`")
 
                     # Download option
                     b64 = base64.b64encode(result_text.encode("utf-8")).decode()
@@ -354,7 +369,35 @@ with tabs[0]:
                     st.markdown(href, unsafe_allow_html=True)
 
                 except Exception as e:
-                    st.error(f"❌ Error during analysis: {e}")
+                    result_placeholder.empty()
+                    st.error(f" Error during analysis: {e}")
+                    # Provide fallback content
+                    fallback_content = f"""
+# 🔒 Basic Cybersecurity Analysis
+
+**Query**: {user_query}
+
+## Key Recommendations:
+
+### Immediate Actions:
+1. **Disconnect from network** if you suspect compromise
+2. **Run antivirus scans** immediately
+3. **Change all passwords** from a clean device
+4. **Monitor accounts** for suspicious activity
+5. **Contact IT support** for professional assistance
+
+### Preventive Measures:
+- Regular system updates
+- Strong, unique passwords
+- Multi-factor authentication
+- Employee security training
+- Regular backups
+
+*Note: AI analysis feature is currently experiencing high demand. These are general security best practices.*
+"""
+                    st.session_state.history[-1]["response"] = fallback_content
+                    with st.expander(" Basic Security Recommendations", expanded=True):
+                        st.markdown(fallback_content)
 
     # Show recent queries
     if st.session_state.history:
@@ -369,29 +412,29 @@ with tabs[0]:
 # Tab 2: Multi-Source Threats
 # -----------------------------
 with tabs[1]:
-    st.header("🌐 Multi-Source Threat Intelligence")
+    st.header(" Multi-Source Threat Intelligence")
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
         st.markdown("""
         **Threat Intelligence Sources:**
-        - 🛡️ **CISA** - Cybersecurity & Infrastructure Security Agency
-        - 🇺🇸 **US-CERT** - United States Computer Emergency Readiness Team  
-        - 📋 **NVD** - National Vulnerability Database (CVEs)
-        - 📰 **Security News** - Latest cybersecurity developments
+        -  **CISA** - Cybersecurity & Infrastructure Security Agency
+        -  **US-CERT** - United States Computer Emergency Readiness Team  
+        -  **NVD** - National Vulnerability Database (CVEs)
+        -  **Security News** - Latest cybersecurity developments
         """)
     
     with col2:
-        if st.button("🔄 Fetch Multi-Source Threats", key="fetch_threats", use_container_width=True):
-            with st.spinner("🔍 Gathering threat intelligence from multiple sources..."):
+        if st.button(" Fetch Multi-Source Threats", key="fetch_threats", use_container_width=True):
+            with st.spinner(" Gathering threat intelligence from multiple sources..."):
                 live_threats = fetch_multiple_threat_sources()
                 st.session_state.live_threats = live_threats
-                st.success(f"✅ Loaded {len(live_threats)} threats from {len(set(t['source'] for t in live_threats))} sources!")
+                st.success(f" Loaded {len(live_threats)} threats from {len(set(t['source'] for t in live_threats))} sources!")
 
     # Display threats by source
     if st.session_state.live_threats:
-        st.subheader(f"📋 Current Threats ({len(st.session_state.live_threats)} from multiple sources)")
+        st.subheader(f" Current Threats ({len(st.session_state.live_threats)} from multiple sources)")
         
         # Group threats by source
         sources = {}
@@ -403,7 +446,7 @@ with tabs[1]:
         
         # Display threats organized by source
         for source, threats in sources.items():
-            with st.expander(f"📡 {source} ({len(threats)} threats)", expanded=True):
+            with st.expander(f" {source} ({len(threats)} threats)", expanded=True):
                 for i, threat in enumerate(threats):
                     severity_icon = "🔴" if threat['severity'] == 'Critical' else "🟠" if threat['severity'] == 'High' else "🟡"
                     
@@ -467,14 +510,14 @@ with tabs[2]:
     
     with col3:
         sources_count = len(set(t['source'] for t in st.session_state.live_threats)) if st.session_state.live_threats else 0
-        st.metric("📡 Sources", sources_count)
+        st.metric(" Sources", sources_count)
     
     with col4:
         st.metric("Your Queries", len(st.session_state.history))
     
     # Visualizations
     if st.session_state.live_threats:
-        st.subheader("📈 Threat Intelligence Analytics")
+        st.subheader("Threat Intelligence Analytics")
         
         col1, col2 = st.columns(2)
         
@@ -494,7 +537,7 @@ with tabs[2]:
             st.plotly_chart(fig_types, use_container_width=True)
         
         # Source statistics
-        st.subheader("📊 Source Statistics")
+        st.subheader(" Source Statistics")
         sources_summary = {}
         for threat in st.session_state.live_threats:
             source = threat['source']
@@ -517,17 +560,17 @@ with tabs[2]:
                 
     else:
         st.info("""
-        **📊 Dashboard Features:**
+        ** Dashboard Features:**
         - Multi-source threat intelligence from CISA, US-CERT, NVD, and security news
         - Interactive charts and analytics
         - Real-time threat monitoring
         - Source-wise threat distribution
         
-        👆 **Go to 'Multi-Source Threats' tab and click 'Fetch Multi-Source Threats' to see the dashboard in action!**
+         **Go to 'Multi-Source Threats' tab and click 'Fetch Multi-Source Threats' to see the dashboard in action!**
         """)
 
 # -----------------------------
 # Footer
 # -----------------------------
 st.markdown("---")
-st.markdown("👨‍💻 Developed by **Niraj Kumar Gupta** | Multi-Source AI Cybersecurity Threat Intelligence")
+st.markdown(" Developed by **Niraj Kumar Gupta** | Multi-Source AI Cybersecurity Threat Intelligence")

@@ -1,212 +1,373 @@
 import os
-from dotenv import load_dotenv
-from crewai import Crew, Process, Task
-from langchain_groq import ChatGroq
-from typing import Dict, List, Optional
+import requests
 import json
 from datetime import datetime
-
-# Load agents and tasks
-from agents.threat_analyst import threat_analyst, threat_analysis_task
-from agents.vulnerability_researcher import vulnerability_researcher, vulnerability_research_task
-from agents.incident_response import incident_response_advisor, incident_response_task
-from agents.report_writer import cybersecurity_writer, write_threat_report_task
+from typing import Dict, List, Optional
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-EXA_API_KEY = os.getenv("EXA_API_KEY")
 
-# Initialize LLM
-llm = ChatGroq(temperature=0, model_name="llama-3.1-8b-instant")
-
-# Assign the same LLM to all agents
-for agent in [threat_analyst, vulnerability_researcher, incident_response_advisor, cybersecurity_writer]:
-    agent.llm = llm
-
-# Link tasks
-incident_response_task.context = [threat_analysis_task, vulnerability_research_task]
-write_threat_report_task.context = [threat_analysis_task, vulnerability_research_task, incident_response_task]
-
-# Initialize Crew
-crew = Crew(
-    agents=[threat_analyst, vulnerability_researcher, incident_response_advisor, cybersecurity_writer],
-    tasks=[threat_analysis_task, vulnerability_research_task, incident_response_task, write_threat_report_task],
-    verbose=2,
-    process=Process.sequential,
-    full_output=True,
-    share_crew=False,
-    manager_llm=llm,
-    max_iter=15,
-)
-
-# 🔹 Run the full crew process for main execution
-def run_cybersecurity_analysis():
-    results = crew.kickoff()
-    return results
-
-# 🔹 Quick Analysis Function
-def get_quick_analysis(user_query: str) -> str:
+def analyze_user_query(user_query: str) -> str:
     """
-    Generate a quick cybersecurity analysis for immediate insights.
-    """
-    quick_task = Task(
-        description=f"Provide a concise cybersecurity analysis for: '{user_query}'. "
-                    f"Focus on immediate risks, top 3 mitigation steps, and urgency level. "
-                    f"Keep response under 300 words.",
-        expected_output="A brief but actionable cybersecurity advisory with urgency rating and immediate steps.",
-        agent=threat_analyst,
-    )
-
-    quick_crew = Crew(
-        agents=[threat_analyst],
-        tasks=[quick_task],
-        verbose=1,
-        process=Process.sequential,
-        manager_llm=llm,
-    )
-
-    result = quick_crew.kickoff()
-    return str(result).strip()
-
-# 🔹 Threat Intelligence Briefing
-def get_threat_intelligence_brief(threats: List[Dict]) -> str:
-    """
-    Generate a comprehensive threat intelligence brief from collected threats.
-    """
-    threats_json = json.dumps(threats, indent=2)
-    
-    brief_task = Task(
-        description=f"Analyze these current cybersecurity threats and create an executive brief: {threats_json}. "
-                    f"Provide: 1) Executive Summary, 2) Top 3 Critical Threats, 3) Industry Impact Analysis, "
-                    f"4) Recommended Immediate Actions, 5) Strategic Recommendations.",
-        expected_output="A comprehensive threat intelligence brief in markdown format for security leadership.",
-        agent=cybersecurity_writer,
-    )
-
-    brief_crew = Crew(
-        agents=[cybersecurity_writer, threat_analyst],
-        tasks=[brief_task],
-        verbose=1,
-        process=Process.sequential,
-        manager_llm=llm,
-    )
-
-    result = brief_crew.kickoff()
-    return str(result).strip()
-
-# 🔹 Dynamic User Query Analysis Function
-def analyze_user_query(user_query: str, analysis_type: str = "comprehensive") -> str:
-    """
-    Generate a comprehensive cybersecurity report for a user query.
+    Generate a comprehensive cybersecurity report using direct Groq API calls.
     """
     print(f"Analyzing user query: {user_query}")
+    
+    if not GROQ_API_KEY:
+        return get_fallback_response(user_query, "GROQ_API_KEY not found in environment variables")
+    
+    try:
+        # Direct Groq API call
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": """You are an expert cybersecurity intelligence analyst. 
+                    Provide comprehensive, actionable cybersecurity reports with this structure:
+                    
+                    1. EXECUTIVE SUMMARY: Brief overview and key recommendations
+                    2. THREAT ANALYSIS: Detailed analysis of the cybersecurity issue
+                    3. RISK ASSESSMENT: Risk level (Low/Medium/High/Critical) and impact
+                    4. IMMEDIATE ACTIONS: 3-5 urgent steps to take now
+                    5. LONG-TERM STRATEGIES: Sustainable security measures
+                    6. BEST PRACTICES: Industry-standard recommendations
+                    7. COMPLIANCE: Relevant frameworks and standards
+                    
+                    Provide practical, actionable advice. Use clear markdown formatting."""
+                },
+                {
+                    "role": "user",
+                    "content": f"Analyze this cybersecurity query and provide a comprehensive intelligence report: {user_query}"
+                }
+            ],
+            "model": "llama-3.1-8b-instant",
+            "temperature": 0,
+            "max_tokens": 2048,
+            "top_p": 1,
+            "stream": False
+        }
+        
+        print("Calling Groq API...")
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            ai_content = result['choices'][0]['message']['content']
+            
+            report_content = f"""
+# 🔒 Comprehensive Cybersecurity Intelligence Report
 
-    if analysis_type == "quick":
-        return get_quick_analysis(user_query)
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+**Query**: {user_query}
 
-    dynamic_task = Task(
-        description=f"Generate a comprehensive cybersecurity intelligence report for: '{user_query}'. "
-                    f"Include: Executive Summary, Threat Landscape Analysis, Vulnerability Assessment, "
-                    f"Risk Scoring (1-10), Immediate Mitigation Steps, Long-term Security Recommendations, "
-                    f"Compliance Considerations, and Implementation Timeline.",
-        expected_output="A detailed and structured cybersecurity report in Markdown format with risk scoring.",
-        agent=cybersecurity_writer,
-    )
+---
 
-    dynamic_crew = Crew(
-        agents=[cybersecurity_writer, threat_analyst, vulnerability_researcher, incident_response_advisor],
-        tasks=[dynamic_task],
-        verbose=2,
-        process=Process.sequential,
-        manager_llm=llm,
-    )
+{ai_content}
 
-    result = dynamic_crew.kickoff()
+---
+*Report generated by AI Cybersecurity Threat Intelligence System using Groq LLM*
+"""
+            return report_content
+        else:
+            error_msg = f"Groq API error: {response.status_code} - {response.text}"
+            print(f"API Error: {error_msg}")
+            return get_fallback_response(user_query, error_msg)
+            
+    except Exception as e:
+        print(f"Error in analyze_user_query: {e}")
+        return get_fallback_response(user_query, str(e))
 
-    # Handle result safely
-    if isinstance(result, dict):
-        final_output = result.get("final_output", "⚠️ No report generated.")
-        task_outputs = result.get("tasks_outputs", [])
-        detailed_text = "\n\n".join(
-            t.exported_output if hasattr(t, "exported_output") else str(t)
-            for t in task_outputs
-        )
-        # Combine summary + detailed sections
-        return f"## Comprehensive Cybersecurity Intelligence Report\n\n**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n{final_output}\n\n---\n## 📋 Detailed Analysis:\n{detailed_text}".strip()
+def get_fallback_response(user_query: str, error: str = "") -> str:
+    """
+    Provide a comprehensive fallback response when AI is unavailable.
+    """
+    user_query_lower = user_query.lower()
+    
+    # Custom responses based on query type
+    if any(term in user_query_lower for term in ['hack', 'compromise', 'infected', 'virus', 'malware']):
+        return f"""
+# 🔒 Cybersecurity Incident Response Report
+
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+**Query**: {user_query}
+
+##  IMMEDIATE ACTIONS REQUIRED
+
+### If you suspect your computer is hacked:
+
+1. **DISCONNECT IMMEDIATELY**
+   - Unplug Ethernet cable
+   - Turn off Wi-Fi
+   - Disable Bluetooth
+
+2. **ENTER SAFE MODE**
+   - Windows: Restart and press F8 for Safe Mode
+   - Mac: Restart holding Shift key
+
+3. **SCAN FOR MALWARE**
+   - Run full system antivirus scan
+   - Use malware removal tools (Malwarebytes, etc.)
+
+4. **CHANGE PASSWORDS** (from a clean device)
+   - Email accounts
+   - Banking and financial
+   - Social media
+   - Work accounts
+
+5. **MONITOR ACCOUNTS**
+   - Check bank statements
+   - Review credit reports
+   - Monitor email for suspicious activity
+
+6. **CONTACT PROFESSIONALS**
+   - IT support team
+   - Cybersecurity experts
+   - If financial data stolen: contact banks immediately
+
+## 🛡️ PREVENTIVE MEASURES
+
+### After cleanup:
+- **Reinstall operating system** if severe infection
+- **Enable firewall** and security software
+- **Use password manager** with unique passwords
+- **Enable multi-factor authentication** everywhere
+- **Regular backups** to external drives/cloud
+
+##  RISK ASSESSMENT
+**Current Risk**: CRITICAL  
+**Impact**: Data theft, financial loss, privacy breach
+
+##  NEXT STEPS
+1. Complete system scan and cleanup
+2. Update all software and security patches
+3. Conduct security awareness training
+4. Implement ongoing monitoring
+
+*Note: AI analysis temporarily unavailable. Error: {error}*
+"""
+
+    elif any(term in user_query_lower for term in ['iphone', 'android', 'mobile', 'phone']):
+        return f"""
+#  Mobile Device Security Report
+
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+**Query**: {user_query}
+
+## 📱 MOBILE SECURITY ESSENTIALS
+
+### For iPhone Security:
+
+1. **UPDATE iOS REGULARLY**
+   - Settings → General → Software Update
+   - Enable automatic updates
+
+2. **ENABLE SECURITY FEATURES**
+   - Face ID/Touch ID + Passcode (use alphanumeric)
+   - Find My iPhone enabled
+   - iCloud Backup enabled
+
+3. **APP PERMISSIONS**
+   - Review app permissions regularly
+   - Disable unnecessary location access
+   - Limit ad tracking
+
+4. **NETWORK SECURITY**
+   - Use VPN on public Wi-Fi
+   - Disable auto-join for unknown networks
+   - Enable firewall (iOS 15+)
+
+5. **DATA PROTECTION**
+   - Encrypted backups via iTunes/Finder
+   - Two-factor authentication for Apple ID
+   - Regular iCloud backups
+
+### For All Mobile Devices:
+
+** Immediate Actions:**
+- Install reputable security app
+- Enable remote wipe capability
+- Use encrypted messaging (Signal, WhatsApp)
+- Avoid jailbreaking/rooting
+
+** Best Practices:**
+- Use password manager
+- Enable biometric authentication
+- Regular security updates
+- Beware of phishing apps
+
+##  RISK ASSESSMENT
+**Mobile Threat Level**: MEDIUM-HIGH  
+**Common Threats**: Data theft, phishing, unsecured apps
+
+*Note: AI analysis temporarily unavailable. Error: {error}*
+"""
+
+    elif any(term in user_query_lower for term in ['ransomware', 'encrypt', 'lockbit']):
+        return f"""
+#  Ransomware Protection Report
+
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+**Query**: {user_query}
+
+##  RANSOMWARE PREVENTION STRATEGY
+
+### Immediate Protection:
+
+1. **BACKUP STRATEGY**
+   - 3-2-1 Rule: 3 copies, 2 media types, 1 offsite
+   - Regular automated backups
+   - Test backup restoration quarterly
+
+2. **EMAIL SECURITY**
+   - Advanced threat protection
+   - Disable macro scripts
+   - Employee phishing training
+
+3. **NETWORK DEFENSES**
+   - Network segmentation
+   - Least privilege access
+   - Application whitelisting
+
+4. **ENDPOINT PROTECTION**
+   - Next-gen antivirus with ransomware detection
+   - Regular patch management
+   - Disable RDP if unused
+
+### If Infected:
+- **DO NOT PAY** ransom
+- **Isolate** infected systems
+- **Contact** cybersecurity professionals
+- **Restore** from clean backups
+
+##  RISK ASSESSMENT
+**Ransomware Risk**: HIGH  
+**Business Impact**: Critical operations disruption
+
+*Note: AI analysis temporarily unavailable. Error: {error}*
+"""
+
     else:
-        return str(result).strip()
+        # Generic cybersecurity response
+        return f"""
+#  Cybersecurity Analysis Report
 
-# 🔹 Vulnerability Assessment Function
-def assess_vulnerability(cve_id: str = None, software_name: str = None) -> str:
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
+**Query**: {user_query}
+
+##  GENERAL CYBERSECURITY BEST PRACTICES
+
+### Essential Security Measures:
+
+1. **PATCH MANAGEMENT**
+   - Regular software updates
+   - Automatic security patches
+   - Vulnerability scanning
+
+2. **ACCESS CONTROL**
+   - Multi-factor authentication
+   - Principle of least privilege
+   - Regular access reviews
+
+3. **DATA PROTECTION**
+   - Encryption at rest and in transit
+   - Regular secure backups
+   - Data classification
+
+4. **NETWORK SECURITY**
+   - Firewall configuration
+   - Network segmentation
+   - Intrusion detection
+
+5. **INCIDENT RESPONSE**
+   - Documented response plan
+   - Regular testing and drills
+   - Employee training
+
+##  SECURITY FRAMEWORKS
+- NIST Cybersecurity Framework
+- ISO 27001
+- CIS Controls
+
+##  RECOMMENDATIONS
+- Conduct risk assessment
+- Implement security awareness program
+- Regular penetration testing
+- Continuous monitoring
+
+*Note: AI analysis temporarily unavailable. Error: {error}*
+"""
+
+def get_quick_analysis(user_query: str) -> str:
     """
-    Specialized function for vulnerability assessment.
+    Generate a quick cybersecurity analysis.
     """
-    target = cve_id if cve_id else software_name
-    vuln_task = Task(
-        description=f"Conduct deep vulnerability assessment for: {target}. "
-                    f"Provide: CVSS scoring, exploit availability, patch status, "
-                    f"workarounds, and detection signatures.",
-        expected_output="Technical vulnerability assessment with actionable remediation guidance.",
-        agent=vulnerability_researcher,
-    )
+    return f"""
+## ⚡ Quick Security Tips
 
-    vuln_crew = Crew(
-        agents=[vulnerability_researcher, incident_response_advisor],
-        tasks=[vuln_task],
-        verbose=1,
-        process=Process.sequential,
-        manager_llm=llm,
-    )
+**For**: {user_query}
 
-    result = vuln_crew.kickoff()
-    return str(result).strip()
+### Top 5 Immediate Actions:
+1. **Update all software** and security patches
+2. **Use strong, unique passwords** with password manager
+3. **Enable multi-factor authentication** on all accounts
+4. **Regular encrypted backups** of important data
+5. **Security awareness training** for all users
 
-# 🔹 Compliance Check Function
-def check_compliance(framework: str = "NIST") -> str:
+*Use comprehensive analysis for detailed recommendations.*
+"""
+
+def get_threat_intelligence_brief(threats: List[Dict]) -> str:
     """
-    Check compliance against security frameworks.
+    Generate a threat intelligence brief.
     """
-    compliance_task = Task(
-        description=f"Analyze current threat landscape against {framework} cybersecurity framework. "
-                    f"Identify compliance gaps and provide remediation roadmap.",
-        expected_output=f"{framework} compliance assessment with gap analysis and remediation plan.",
-        agent=cybersecurity_writer,
-    )
+    if not threats:
+        return "#  Threat Intelligence Brief\n\nNo current threats to analyze."
+    
+    threats_summary = "\n".join([f"- {t['title']} (Severity: {t['severity']})" for t in threats])
+    
+    return f"""
+#  Threat Intelligence Brief
 
-    compliance_crew = Crew(
-        agents=[cybersecurity_writer, threat_analyst],
-        tasks=[compliance_task],
-        verbose=1,
-        process=Process.sequential,
-        manager_llm=llm,
-    )
+## Current Threat Landscape
 
-    result = compliance_crew.kickoff()
-    return str(result).strip()
+**Threats Monitored**: {len(threats)}
+**Highest Severity**: {max([t['severity'] for t in threats], key=lambda x: ['Low','Medium','High','Critical'].index(x))}
 
-# 🔹 Main Execution Block
+## Active Threats:
+{threats_summary}
+
+## Recommended Actions:
+- Review and apply relevant security patches
+- Update detection rules and signatures
+- Conduct targeted security awareness
+- Enhance monitoring for related IOCs
+
+*Generated from multi-source threat intelligence*
+"""
+
+# Test the function
 if __name__ == "__main__":
-    # Example usage of different functions
-    print("🧠 AI Cybersecurity Threat Intelligence System")
+    print(" AI Cybersecurity Threat Intelligence System")
     print("=" * 50)
     
-    # Test quick analysis
-    quick_result = get_quick_analysis("How to secure remote work environment?")
-    print("\n⚡ Quick Analysis Result:")
-    print(quick_result)
+    # Test the function
+    test_query = "How to prevent ransomware attacks?"
+    result = analyze_user_query(test_query)
+    print("\n📊 Analysis Result:")
+    print(result)
     
-    # Test comprehensive analysis
-    comprehensive_result = analyze_user_query("Ransomware protection strategies for healthcare organizations")
-    print("\n📊 Comprehensive Analysis Result:")
-    print(comprehensive_result)
-    
-    # Save reports
+    # Save report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    with open(f"quick_analysis_{timestamp}.txt", "w") as f:
-        f.write(quick_result)
+    with open(f"cybersecurity_report_{timestamp}.txt", "w") as f:
+        f.write(result)
     
-    with open(f"comprehensive_report_{timestamp}.txt", "w") as f:
-        f.write(comprehensive_result)
-    
-    print(f"\n✅ Reports saved with timestamp: {timestamp}")
+    print(f"\n Report saved with timestamp: {timestamp}")
